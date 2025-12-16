@@ -9,7 +9,7 @@ use lyon_path::math::Point;
 use lyon_path::path::Builder as PathBuilder;
 use lyon_path::Path;
 use lyon_tessellation::geometry_builder::VertexBuffers;
-use lyon_tessellation::{BuffersBuilder, FillOptions, FillTessellator, FillVertex};
+use lyon_tessellation::{BuffersBuilder, FillOptions, FillRule, FillTessellator, FillVertex};
 use stl_io::Triangle;
 use ttf_parser::{Face, OutlineBuilder};
 
@@ -245,7 +245,9 @@ fn tessellate_path(path: &Path) -> Result<Mesh2D> {
     let mut tess = FillTessellator::new();
     tess.tessellate_path(
         path,
-        &FillOptions::default(),
+        &FillOptions::default()
+            .with_fill_rule(FillRule::NonZero)
+            .with_tolerance(0.01),
         &mut BuffersBuilder::new(&mut buffers, |v: FillVertex| v.position()),
     )
     .context("ポリゴンの三角形分割に失敗しました")?;
