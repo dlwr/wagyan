@@ -16,34 +16,34 @@ use ttf_parser::{Face, OutlineBuilder};
 
 const EMBEDDED_FONT: &[u8] = include_bytes!("../assets/fonts/NotoSansJP-Regular.otf");
 
-/// 文字列をSTLに押し出すシンプルなCLI
+/// Simple CLI that extrudes text into an ASCII STL
 #[derive(Parser, Debug)]
 #[command(author, version, about)]
 struct Args {
-    /// 出力するテキスト
+    /// Text to render
     text: String,
-    /// 利用するフォントファイル(.ttf/.otf)。省略時は組み込みの Noto Sans JP Regular
+    /// Font file (.ttf/.otf). Falls back to embedded Noto Sans JP Regular
     #[arg(short, long)]
     font: Option<PathBuf>,
-    /// フォントサイズ（px相当）
+    /// Font size (px-ish units)
     #[arg(long, default_value_t = 72.0)]
     size: f32,
-    /// 押し出し深さ（同一単位）
+    /// Extrusion depth (same units as layout)
     #[arg(long, default_value_t = 10.0)]
     depth: f32,
-    /// 文字間の追加スペース
+    /// Additional spacing between glyphs
     #[arg(long, default_value_t = 0.0)]
     spacing: f32,
-    /// 配置面の向き（flat=従来のXY平面, front=正面向きXZ平面）
+    /// Plane orientation (flat: XY floor, front: XZ facing viewer)
     #[arg(long, value_enum, default_value_t = Orientation::Front)]
     orient: Orientation,
-    /// 入力文字列中のエスケープ（\\n）をそのまま保持する
+    /// Keep literal "\n" (do not convert to newline)
     #[arg(long)]
     no_escape: bool,
-    /// 中心が原点付近に来るよう自動平行移動を無効化
+    /// Disable auto-centering to origin
     #[arg(long)]
     no_center: bool,
-    /// 出力先ファイル
+    /// Output file (stdout by default)
     #[arg(short, long)]
     output: Option<PathBuf>,
 }
@@ -56,36 +56,34 @@ enum Orientation {
 
 fn main() -> Result<()> {
     let args = Args::parse();
-    run(args).context("変換に失敗しました")
+    run(args).context("conversion failed")
 }
 
 fn run(args: Args) -> Result<()> {
-    // フォント読み込み（省略時は組み込みの Noto Sans JP Regular）
+    // Load font (fallback to embedded Noto Sans JP Regular)
     let font_bytes: Cow<[u8]> = if let Some(path) = args.font.as_ref() {
-        Cow::Owned(fs::read(path).with_context(|| {
-            format!(
-                "フォントファイルの読み込みに失敗しました: {}",
-                path.display()
-            )
-        })?)
+        Cow::Owned(
+            fs::read(path)
+                .with_context(|| format!("failed to read font file: {}", path.display()))?,
+        )
     } else {
         Cow::Borrowed(EMBEDDED_FONT)
     };
-    let face = Face::parse(&font_bytes, 0).context("フォントのパースに失敗しました")?;
+    let face = Face::parse(&font_bytes, 0).context("failed to parse font")?;
 
-    // 単位換算
+    // Unit conversion
     let units_per_em = face.units_per_em() as f32;
     let scale = args.size / units_per_em;
     let baseline_y = face.ascender() as f32 * scale;
 
-    // エスケープされた改行を実際の改行に変換（デフォルト）
+    // Convert literal "\n" to newline unless disabled
     let text = if args.no_escape {
         args.text.clone()
     } else {
         args.text.replace("\\n", "\n")
     };
 
-    // アウトラインを1つのPathにまとめる
+    // Build a single path from all glyph outlines
     let mut path_builder = Path::builder();
     layout_text_to_path(
         &face,
@@ -97,27 +95,27 @@ fn run(args: Args) -> Result<()> {
     )?;
     let path = path_builder.build();
 
-    // メッシュ化
+    // Tessellate and extrude
     let mut mesh = tessellate_path(&path)?;
     if !args.no_center {
         center_mesh_xy(&mut mesh);
     }
     let triangles = extrude_mesh(&mesh, args.depth, args.orient.clone());
 
-    // STLを書き出し: デフォルト stdout、--output でファイル
+    // Write STL: default to stdout, file when --output is set
     if let Some(path) = args.output.as_ref() {
         write_stl_ascii(path, &triangles)
-            .with_context(|| format!("STL書き出しに失敗しました（ASCII）: {}", path.display()))?;
-        println!("✅ 出力: {}", path.display());
+            .with_context(|| format!("failed to write ASCII STL: {}", path.display()))?;
+        println!("✅ wrote: {}", path.display());
     } else {
         let mut out = BufWriter::new(std::io::stdout().lock());
         write_stl_ascii_to_writer(&mut out, "mesh", &triangles)
-            .context("STL書き出しに失敗しました（stdout）")?;
+            .context("failed to write ASCII STL to stdout")?;
     }
     Ok(())
 }
 
-/// テキストを単純な横書きでレイアウトし、Pathにアウトラインを積み上げる
+/// Simple left-to-right layout; collects glyph outlines into a path
 fn layout_text_to_path(
     face: &Face<'_>,
     builder: &mut PathBuilder,
@@ -140,12 +138,12 @@ fn layout_text_to_path(
         let gid = match face.glyph_index(ch) {
             Some(id) => id,
             None => {
-                eprintln!("⚠️ フォントに存在しない文字をスキップ: '{}'", ch);
+                eprintln!("⚠️ Skip missing glyph: '{}'", ch);
                 continue;
             }
         };
 
-        // アウトラインをPathに追加
+        // Add outline to path
         let mut adapter = LyonOutlineBuilder {
             builder,
             offset_x: pen_x,
@@ -153,9 +151,9 @@ fn layout_text_to_path(
             scale,
         };
         face.outline_glyph(gid, &mut adapter)
-            .ok_or_else(|| anyhow::anyhow!("アウトライン取得に失敗しました: {}", ch))?;
+            .ok_or_else(|| anyhow::anyhow!("failed to get outline for '{}'", ch))?;
 
-        // 前進量: advance + spacing
+        // Advance: glyph advance + spacing
         let advance = face.glyph_hor_advance(gid).unwrap_or(0) as f32 * scale + spacing;
         pen_x += advance;
     }
@@ -163,7 +161,7 @@ fn layout_text_to_path(
     Ok(())
 }
 
-/// ttf-parser のアウトラインを lyon の PathBuilder に変換する
+/// Adapter: ttf-parser outline -> lyon PathBuilder
 struct LyonOutlineBuilder<'a> {
     builder: &'a mut PathBuilder,
     offset_x: f32,
@@ -258,7 +256,7 @@ fn tessellate_path(path: &Path) -> Result<Mesh2D> {
             .with_tolerance(0.01),
         &mut BuffersBuilder::new(&mut buffers, |v: FillVertex| v.position()),
     )
-    .context("ポリゴンの三角形分割に失敗しました")?;
+    .context("failed to tessellate polygon")?;
 
     Ok(Mesh2D {
         vertices: buffers.vertices,
@@ -271,7 +269,7 @@ fn extrude_mesh(mesh: &Mesh2D, depth: f32, orient: Orientation) -> Vec<Triangle>
     let z0 = -depth * 0.5;
     let z1 = depth * 0.5;
 
-    // 上面
+    // Top face
     for idx in mesh.indices.chunks(3) {
         let a = mesh.vertices[idx[0] as usize];
         let b = mesh.vertices[idx[1] as usize];
@@ -283,7 +281,7 @@ fn extrude_mesh(mesh: &Mesh2D, depth: f32, orient: Orientation) -> Vec<Triangle>
         ));
     }
 
-    // 下面（頂点の並びを反転し、法線を下向きに）
+    // Bottom face (reverse winding so normal points down)
     for idx in mesh.indices.chunks(3) {
         let a = mesh.vertices[idx[0] as usize];
         let b = mesh.vertices[idx[1] as usize];
@@ -295,7 +293,7 @@ fn extrude_mesh(mesh: &Mesh2D, depth: f32, orient: Orientation) -> Vec<Triangle>
         ));
     }
 
-    // 側面: 境界エッジを検出して四角を2三角形に
+    // Side faces: detect boundary edges, create quads -> two triangles
     for (i0, i1) in boundary_edges(&mesh.indices) {
         let p0 = mesh.vertices[i0 as usize];
         let p1 = mesh.vertices[i1 as usize];
@@ -312,7 +310,7 @@ fn extrude_mesh(mesh: &Mesh2D, depth: f32, orient: Orientation) -> Vec<Triangle>
     triangles
 }
 
-/// 境界エッジと向き情報を返す（true = (a->b) が三角形と同じ向き）
+/// Return boundary edges (true = edge orientation matches triangle winding)
 fn boundary_edges(indices: &[u16]) -> Vec<(u16, u16)> {
     let mut counts: HashMap<(u16, u16), u32> = HashMap::new();
     let mut oriented: HashMap<(u16, u16), (u16, u16)> = HashMap::new();
@@ -359,8 +357,8 @@ fn calc_normal(a: [f32; 3], b: [f32; 3], c: [f32; 3]) -> [f32; 3] {
 fn map_point(p: Point, z: f32, orient: &Orientation) -> [f32; 3] {
     match orient {
         Orientation::Flat => [p.x, p.y, z],
-        // 正面向き: Xはそのまま、+Zを上に回転させ、+Yが手前を向く
-        // （元の+Z法線を+Yへ、文字の上下は維持）
+        // Front orientation: keep X, rotate +Z to up, +Y faces viewer
+        // (original +Z normals become +Y; text keeps its vertical sense)
         Orientation::Front => [p.x, -z, p.y],
     }
 }
