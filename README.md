@@ -12,6 +12,7 @@ cargo run -- --font "/System/Library/Fonts/ヒラギノ角ゴシック W4.ttc" -
 
 Options:
 - `--font <path>`: TTF/OTF font. Defaults to embedded Noto Sans JP Regular.
+- `--face-index <n>`: Face index for font collections (.ttc). Default `0`.
 - `--size <px>`: Font size. Default `72`.
 - `--depth <value>`: Extrusion depth (centered ±depth/2). Default `10`.
 - `--spacing <value>`: Extra spacing between glyphs.
