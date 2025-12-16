@@ -16,6 +16,7 @@ Options:
 - `--size <px>`: Font size. Default `72`.
 - `--depth <value>`: Extrusion depth (centered ±depth/2). Default `10`.
 - `--spacing <value>`: Extra spacing between glyphs.
+- `--kerning` / `--no-kerning`: Toggle kerning (default on when font provides pairs).
 - `--plate <value>`: Back plate thickness (0 disables). Default `2`.
 - `--plate-margin <value>`: Margin to expand the plate. Default `2`.
 - `--orient <flat|front>`: Text plane (front faces the viewer on XZ; flat is XY).
@@ -26,7 +27,7 @@ Options:
 ## Notes
 - Supports multiline (`\n`), rendered top to bottom.
 - Any script is OK as long as the font has glyphs.
-- Simple LTR layout; kerning is not applied.
+- Simple LTR layout; kerning is applied when provided by the font (disable with `--no-kerning`).
 - Missing glyphs are skipped with a warning.
 - Bundled font: Noto Sans JP Regular (SIL Open Font License 1.1). See `assets/fonts/OFL.txt`.
 - Project license: MIT (see `LICENSE`).
