@@ -40,6 +40,9 @@ struct Args {
     /// 入力文字列中のエスケープ（\\n）をそのまま保持する
     #[arg(long)]
     no_escape: bool,
+    /// 標準出力へASCII STLを書き出す（ファイルには書かない）
+    #[arg(long)]
+    stdout: bool,
     /// 中心が原点付近に来るよう自動平行移動を無効化
     #[arg(long)]
     no_center: bool,
@@ -105,14 +108,19 @@ fn run(args: Args) -> Result<()> {
     let triangles = extrude_mesh(&mesh, args.depth, args.orient.clone());
 
     // STLを書き出し
-    write_stl_ascii(&args.output, &triangles).with_context(|| {
-        format!(
-            "STL書き出しに失敗しました（ASCII）: {}",
-            args.output.display()
-        )
-    })?;
-
-    println!("✅ 出力: {}", args.output.display());
+    if args.stdout {
+        let mut out = BufWriter::new(std::io::stdout().lock());
+        write_stl_ascii_to_writer(&mut out, "mesh", &triangles)
+            .context("STL書き出しに失敗しました（stdout）")?;
+    } else {
+        write_stl_ascii(&args.output, &triangles).with_context(|| {
+            format!(
+                "STL書き出しに失敗しました（ASCII）: {}",
+                args.output.display()
+            )
+        })?;
+        println!("✅ 出力: {}", args.output.display());
+    }
     Ok(())
 }
 
@@ -366,25 +374,27 @@ fn map_point(p: Point, z: f32, orient: &Orientation) -> [f32; 3] {
 
 fn write_stl_ascii(path: &PathBuf, tris: &[Triangle]) -> Result<()> {
     let name = path.file_stem().and_then(|s| s.to_str()).unwrap_or("mesh");
-
     let file = File::create(path)?;
-    let mut buf = BufWriter::new(file);
+    let buf = BufWriter::new(file);
+    write_stl_ascii_to_writer(buf, name, tris)
+}
 
-    writeln!(buf, "solid {}", name)?;
+fn write_stl_ascii_to_writer<W: Write>(mut writer: W, name: &str, tris: &[Triangle]) -> Result<()> {
+    writeln!(writer, "solid {}", name)?;
     for tri in tris {
         writeln!(
-            buf,
+            writer,
             "  facet normal {} {} {}",
             tri.normal[0], tri.normal[1], tri.normal[2]
         )?;
-        writeln!(buf, "    outer loop")?;
+        writeln!(writer, "    outer loop")?;
         for v in &tri.vertices {
-            writeln!(buf, "      vertex {} {} {}", v[0], v[1], v[2])?;
+            writeln!(writer, "      vertex {} {} {}", v[0], v[1], v[2])?;
         }
-        writeln!(buf, "    endloop")?;
-        writeln!(buf, "  endfacet")?;
+        writeln!(writer, "    endloop")?;
+        writeln!(writer, "  endfacet")?;
     }
-    writeln!(buf, "endsolid {}", name)?;
-    buf.flush()?;
+    writeln!(writer, "endsolid {}", name)?;
+    writer.flush()?;
     Ok(())
 }

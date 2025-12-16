@@ -15,7 +15,10 @@ cargo run -- --font /System/Library/Fonts/ヒラギノ角ゴシック W4.ttc --s
 - `--size <px>`: フォントサイズ。デフォルト `72`
 - `--depth <value>`: 押し出し深さ。デフォルト `10`（Z方向を中心 ±depth/2 で押し出し）
 - `--spacing <value>`: 文字間の追加スペース
+- `--plate <value>`: 背面プレートの厚み（0で無効）。デフォルト `2`
+- `--plate-margin <value>`: プレートを文字より広げるマージン。デフォルト `2`
 - `--orient <flat|front>`: 配置面の向き。`front` は正面向き（XZ面）で、ビューアーを開いた直後に文字が読みやすい。`flat` は従来のXY平面。
+- `--stdout`: ASCII STL を標準出力へ出力（ファイルには書かない）
 - `--no-escape`: 入力中の `\\n` を改行に変換せず、そのまま出力する（デフォルトは `\\n` を改行に置換）
 - `--no-center`: 自動センタリングを無効化（デフォルトはXY原点付近に平行移動）
 - `--output <path>`: 出力先STLファイル。デフォルト `text.stl`（ASCII出力）
