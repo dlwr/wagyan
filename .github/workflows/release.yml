@@ -10,6 +10,9 @@ jobs:
     env:
       TARGET: aarch64-apple-darwin
       PKG_NAME: wagyan-${{ github.ref_name }}-macos-arm64
+    outputs:
+      url: ${{ steps.capture.outputs.url }}
+      sha: ${{ steps.capture.outputs.sha }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -30,6 +33,13 @@ jobs:
           tar -C dist -czf $PKG_NAME.tar.gz wagyan OFL.txt
           shasum -a 256 $PKG_NAME.tar.gz > $PKG_NAME.tar.gz.sha256
 
+      - name: Capture URL and SHA
+        id: capture
+        run: |
+          SHA=$(cut -d' ' -f1 "$PKG_NAME.tar.gz.sha256")
+          echo "sha=$SHA" >> $GITHUB_OUTPUT
+          echo "url=https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/${PKG_NAME}.tar.gz" >> $GITHUB_OUTPUT
+
       - name: Upload asset
         uses: softprops/action-gh-release@v1
         with:
@@ -38,3 +48,29 @@ jobs:
             ${{ env.PKG_NAME }}.tar.gz.sha256
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  update-homebrew-tap:
+    needs: build-and-upload-macos-arm64
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout tap repo
+        uses: actions/checkout@v4
+        with:
+          repository: dlwr/homebrew-wagyan
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update formula with new URL and SHA
+        run: |
+          URL="${{ needs.build-and-upload-macos-arm64.outputs.url }}"
+          SHA="${{ needs.build-and-upload-macos-arm64.outputs.sha }}"
+          FILE=Formula/wagyan.rb
+          perl -pi -e 's|^  url ".*"|  url "'"$URL"'"|' "$FILE"
+          perl -pi -e 's|^  sha256 ".*"|  sha256 "'"$SHA"'"|' "$FILE"
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Formula/wagyan.rb
+          git commit -m "Update wagyan formula for ${GITHUB_REF_NAME}"
+          git push
