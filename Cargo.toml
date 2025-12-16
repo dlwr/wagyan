@@ -1,0 +1,12 @@
+[package]
+name = "wagyan"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0"
+clap = { version = "4.5", features = ["derive"] }
+lyon_path = "1.0"
+lyon_tessellation = "1.0"
+stl_io = "0.4"
+ttf-parser = "0.21"
