@@ -1,0 +1,40 @@
+name: Release binaries
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  build-and-upload-macos-arm64:
+    runs-on: macos-14
+    env:
+      TARGET: aarch64-apple-darwin
+      PKG_NAME: wagyan-${{ github.ref_name }}-macos-arm64
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ env.TARGET }}
+
+      - name: Build release (macOS arm64)
+        run: cargo build --release --target $TARGET
+
+      - name: Package artifact
+        run: |
+          mkdir -p dist
+          cp target/$TARGET/release/wagyan dist/
+          cp assets/fonts/OFL.txt dist/
+          tar -C dist -czf $PKG_NAME.tar.gz wagyan OFL.txt
+          shasum -a 256 $PKG_NAME.tar.gz > $PKG_NAME.tar.gz.sha256
+
+      - name: Upload asset
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            ${{ env.PKG_NAME }}.tar.gz
+            ${{ env.PKG_NAME }}.tar.gz.sha256
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
