@@ -28,3 +28,4 @@ Options:
 - Simple LTR layout; kerning is not applied.
 - Missing glyphs are skipped with a warning.
 - Bundled font: Noto Sans JP Regular (SIL Open Font License 1.1). See `assets/fonts/OFL.txt`.
+- Project license: MIT (see `LICENSE`).
