@@ -34,10 +34,16 @@ struct Args {
     /// Additional spacing between glyphs
     #[arg(long, default_value_t = 0.0)]
     spacing: f32,
+    /// Back plate thickness (0 disables)
+    #[arg(long, default_value_t = 2.0)]
+    plate: f32,
+    /// Margin to expand the plate
+    #[arg(long, default_value_t = 2.0)]
+    plate_margin: f32,
     /// Plane orientation (flat: XY floor, front: XZ facing viewer)
     #[arg(long, value_enum, default_value_t = Orientation::Front)]
     orient: Orientation,
-    /// Keep literal "\n" (do not convert to newline)
+    /// Keep literal "\\n" (do not convert to newline)
     #[arg(long)]
     no_escape: bool,
     /// Disable auto-centering to origin
@@ -100,7 +106,28 @@ fn run(args: Args) -> Result<()> {
     if !args.no_center {
         center_mesh_xy(&mut mesh);
     }
-    let triangles = extrude_mesh(&mesh, args.depth, args.orient.clone());
+
+    let mut triangles = Vec::new();
+
+    if args.plate > 0.0 {
+        if let Some((min_x, max_x, min_y, max_y)) = mesh_bounds(&mesh) {
+            let plate_mesh = rectangle_mesh(
+                min_x - args.plate_margin,
+                max_x + args.plate_margin,
+                min_y - args.plate_margin,
+                max_y + args.plate_margin,
+            );
+            let plate_offset = -(args.depth * 0.5 + args.plate * 0.5);
+            triangles.extend(extrude_mesh_with_offset(
+                &plate_mesh,
+                args.plate,
+                args.orient.clone(),
+                plate_offset,
+            ));
+        }
+    }
+
+    triangles.extend(extrude_mesh(&mesh, args.depth, args.orient.clone()));
 
     // Write STL: default to stdout, file when --output is set
     if let Some(path) = args.output.as_ref() {
@@ -246,6 +273,38 @@ fn center_mesh_xy(mesh: &mut Mesh2D) {
     }
 }
 
+fn mesh_bounds(mesh: &Mesh2D) -> Option<(f32, f32, f32, f32)> {
+    if mesh.vertices.is_empty() {
+        return None;
+    }
+
+    let mut min_x = f32::MAX;
+    let mut max_x = f32::MIN;
+    let mut min_y = f32::MAX;
+    let mut max_y = f32::MIN;
+
+    for p in &mesh.vertices {
+        min_x = min_x.min(p.x);
+        max_x = max_x.max(p.x);
+        min_y = min_y.min(p.y);
+        max_y = max_y.max(p.y);
+    }
+
+    Some((min_x, max_x, min_y, max_y))
+}
+
+fn rectangle_mesh(min_x: f32, max_x: f32, min_y: f32, max_y: f32) -> Mesh2D {
+    Mesh2D {
+        vertices: vec![
+            Point::new(min_x, min_y),
+            Point::new(max_x, min_y),
+            Point::new(max_x, max_y),
+            Point::new(min_x, max_y),
+        ],
+        indices: vec![0u16, 1, 2, 0, 2, 3],
+    }
+}
+
 fn tessellate_path(path: &Path) -> Result<Mesh2D> {
     let mut buffers: VertexBuffers<Point, u16> = VertexBuffers::new();
     let mut tess = FillTessellator::new();
@@ -264,10 +323,15 @@ fn tessellate_path(path: &Path) -> Result<Mesh2D> {
     })
 }
 
-fn extrude_mesh(mesh: &Mesh2D, depth: f32, orient: Orientation) -> Vec<Triangle> {
+fn extrude_mesh_with_offset(
+    mesh: &Mesh2D,
+    depth: f32,
+    orient: Orientation,
+    z_offset: f32,
+) -> Vec<Triangle> {
     let mut triangles = Vec::new();
-    let z0 = -depth * 0.5;
-    let z1 = depth * 0.5;
+    let z0 = -depth * 0.5 + z_offset;
+    let z1 = depth * 0.5 + z_offset;
 
     // Top face
     for idx in mesh.indices.chunks(3) {
@@ -308,6 +372,10 @@ fn extrude_mesh(mesh: &Mesh2D, depth: f32, orient: Orientation) -> Vec<Triangle>
     }
 
     triangles
+}
+
+fn extrude_mesh(mesh: &Mesh2D, depth: f32, orient: Orientation) -> Vec<Triangle> {
+    extrude_mesh_with_offset(mesh, depth, orient, 0.0)
 }
 
 /// Return boundary edges (true = edge orientation matches triangle winding)
