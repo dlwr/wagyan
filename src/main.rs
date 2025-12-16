@@ -40,15 +40,12 @@ struct Args {
     /// 入力文字列中のエスケープ（\\n）をそのまま保持する
     #[arg(long)]
     no_escape: bool,
-    /// 標準出力へASCII STLを書き出す（ファイルには書かない）
-    #[arg(long)]
-    stdout: bool,
     /// 中心が原点付近に来るよう自動平行移動を無効化
     #[arg(long)]
     no_center: bool,
     /// 出力先ファイル
-    #[arg(short, long, default_value = "text.stl")]
-    output: PathBuf,
+    #[arg(short, long)]
+    output: Option<PathBuf>,
 }
 
 #[derive(clap::ValueEnum, Clone, Debug)]
@@ -107,19 +104,15 @@ fn run(args: Args) -> Result<()> {
     }
     let triangles = extrude_mesh(&mesh, args.depth, args.orient.clone());
 
-    // STLを書き出し
-    if args.stdout {
+    // STLを書き出し: デフォルト stdout、--output でファイル
+    if let Some(path) = args.output.as_ref() {
+        write_stl_ascii(path, &triangles)
+            .with_context(|| format!("STL書き出しに失敗しました（ASCII）: {}", path.display()))?;
+        println!("✅ 出力: {}", path.display());
+    } else {
         let mut out = BufWriter::new(std::io::stdout().lock());
         write_stl_ascii_to_writer(&mut out, "mesh", &triangles)
             .context("STL書き出しに失敗しました（stdout）")?;
-    } else {
-        write_stl_ascii(&args.output, &triangles).with_context(|| {
-            format!(
-                "STL書き出しに失敗しました（ASCII）: {}",
-                args.output.display()
-            )
-        })?;
-        println!("✅ 出力: {}", args.output.display());
     }
     Ok(())
 }
