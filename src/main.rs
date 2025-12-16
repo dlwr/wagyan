@@ -25,6 +25,9 @@ struct Args {
     /// Font file (.ttf/.otf). Falls back to embedded Noto Sans JP Regular
     #[arg(short, long)]
     font: Option<PathBuf>,
+    /// Face index for font collections (.ttc). 0-based.
+    #[arg(long, default_value_t = 0)]
+    face_index: u32,
     /// Font size (px-ish units)
     #[arg(long, default_value_t = 72.0)]
     size: f32,
@@ -75,14 +78,27 @@ fn run(args: Args) -> Result<()> {
     } else {
         Cow::Borrowed(EMBEDDED_FONT)
     };
-    let face = Face::parse(&font_bytes, 0).context("failed to parse font")?;
+
+    let face_count = ttf_parser::fonts_in_collection(&font_bytes).unwrap_or(1);
+    anyhow::ensure!(face_count > 0, "font file appears to have no faces");
+    anyhow::ensure!(
+        args.face_index < face_count,
+        "face index {} is out of range (available 0..={}; font has {} face{})",
+        args.face_index,
+        face_count - 1,
+        face_count,
+        if face_count == 1 { "" } else { "s" },
+    );
+
+    let face = Face::parse(&font_bytes, args.face_index)
+        .with_context(|| format!("failed to parse font (face index {})", args.face_index))?;
 
     // Unit conversion
     let units_per_em = face.units_per_em() as f32;
     let scale = args.size / units_per_em;
     let baseline_y = face.ascender() as f32 * scale;
 
-    // Convert literal "\n" to newline unless disabled
+    // Convert literal "\\n" to newline unless disabled
     let text = if args.no_escape {
         args.text.clone()
     } else {
