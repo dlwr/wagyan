@@ -3,15 +3,15 @@
 ## 使い方
 
 ```bash
-# 例: Arial.ttf を使って「HELLO」を高さ5、フォントサイズ72で出力
-cargo run -- --font /System/Library/Fonts/Supplemental/Arial.ttf --size 72 --depth 5 "HELLO"
+# デフォルト組み込みフォント（Noto Sans JP Regular）で出力
+cargo run -- --size 72 --depth 10 "HELLO"
 
 # 日本語（例: Hiragino Sans）と改行
 cargo run -- --font /System/Library/Fonts/ヒラギノ角ゴシック W4.ttc --size 72 --depth 5 "こんにちは\n世界"
 ```
 
 オプション:
-- `--font <path>`: 使用するフォントファイル（TTF/OTF必須）
+- `--font <path>`: 使用するフォントファイル（TTF/OTF）。省略時は組み込みの Noto Sans JP Regular。
 - `--size <px>`: フォントサイズ。デフォルト `72`
 - `--depth <value>`: 押し出し深さ。デフォルト `10`（Z方向を中心 ±depth/2 で押し出し）
 - `--spacing <value>`: 文字間の追加スペース
@@ -25,3 +25,4 @@ cargo run -- --font /System/Library/Fonts/ヒラギノ角ゴシック W4.ttc --s
 - 日本語などマルチバイト文字もフォントにグリフがあれば出力可能です。
 - 現在はカーニングなしの単純横書きです。
 - フォントに含まれない文字はスキップされます。
+- 同梱フォント: Noto Sans JP Regular（SIL Open Font License 1.1）。`assets/fonts/OFL.txt` を参照してください。

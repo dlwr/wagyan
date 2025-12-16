@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::fs::{self, File};
 use std::io::{BufWriter, Write};
@@ -13,15 +14,17 @@ use lyon_tessellation::{BuffersBuilder, FillOptions, FillRule, FillTessellator, 
 use stl_io::Triangle;
 use ttf_parser::{Face, OutlineBuilder};
 
+const EMBEDDED_FONT: &[u8] = include_bytes!("../assets/fonts/NotoSansJP-Regular.otf");
+
 /// 文字列をSTLに押し出すシンプルなCLI
 #[derive(Parser, Debug)]
 #[command(author, version, about)]
 struct Args {
     /// 出力するテキスト
     text: String,
-    /// 利用するフォントファイル(.ttf/.otf)
+    /// 利用するフォントファイル(.ttf/.otf)。省略時は組み込みの Noto Sans JP Regular
     #[arg(short, long)]
-    font: PathBuf,
+    font: Option<PathBuf>,
     /// フォントサイズ（px相当）
     #[arg(long, default_value_t = 72.0)]
     size: f32,
@@ -57,14 +60,18 @@ fn main() -> Result<()> {
 }
 
 fn run(args: Args) -> Result<()> {
-    // フォント読み込み
-    let font_data = fs::read(&args.font).with_context(|| {
-        format!(
-            "フォントファイルの読み込みに失敗しました: {}",
-            args.font.display()
-        )
-    })?;
-    let face = Face::parse(&font_data, 0).context("フォントのパースに失敗しました")?;
+    // フォント読み込み（省略時は組み込みの Noto Sans JP Regular）
+    let font_bytes: Cow<[u8]> = if let Some(path) = args.font.as_ref() {
+        Cow::Owned(fs::read(path).with_context(|| {
+            format!(
+                "フォントファイルの読み込みに失敗しました: {}",
+                path.display()
+            )
+        })?)
+    } else {
+        Cow::Borrowed(EMBEDDED_FONT)
+    };
+    let face = Face::parse(&font_bytes, 0).context("フォントのパースに失敗しました")?;
 
     // 単位換算
     let units_per_em = face.units_per_em() as f32;
