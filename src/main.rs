@@ -12,7 +12,7 @@ use lyon_path::Path;
 use lyon_tessellation::geometry_builder::VertexBuffers;
 use lyon_tessellation::{BuffersBuilder, FillOptions, FillRule, FillTessellator, FillVertex};
 use stl_io::Triangle;
-use ttf_parser::{Face, OutlineBuilder};
+use ttf_parser::{Face, GlyphId, OutlineBuilder};
 
 const EMBEDDED_FONT: &[u8] = include_bytes!("../assets/fonts/NotoSansJP-Regular.otf");
 
@@ -37,6 +37,12 @@ struct Args {
     /// Additional spacing between glyphs
     #[arg(long, default_value_t = 0.0)]
     spacing: f32,
+    /// Apply kerning when available (disable with --no-kerning)
+    #[arg(long, default_value_t = true, action = clap::ArgAction::SetTrue, conflicts_with = "no_kerning")]
+    kerning: bool,
+    /// Disable kerning adjustments
+    #[arg(long = "no-kerning", action = clap::ArgAction::SetTrue, conflicts_with = "kerning")]
+    no_kerning: bool,
     /// Back plate thickness (0 disables)
     #[arg(long, default_value_t = 2.0)]
     plate: f32,
@@ -105,6 +111,8 @@ fn run(args: Args) -> Result<()> {
         args.text.replace("\\n", "\n")
     };
 
+    let kerning = if args.no_kerning { false } else { args.kerning };
+
     // Build a single path from all glyph outlines
     let mut path_builder = Path::builder();
     layout_text_to_path(
@@ -114,6 +122,7 @@ fn run(args: Args) -> Result<()> {
         scale,
         baseline_y,
         args.spacing,
+        kerning,
     )?;
     let path = path_builder.build();
 
@@ -158,6 +167,19 @@ fn run(args: Args) -> Result<()> {
     Ok(())
 }
 
+fn kerning_value(face: &Face<'_>, left: GlyphId, right: GlyphId) -> Option<i16> {
+    let kern = face.tables().kern.as_ref()?;
+    for subtable in kern.subtables.into_iter() {
+        if !subtable.horizontal || subtable.has_cross_stream || subtable.has_state_machine {
+            continue;
+        }
+        if let Some(value) = subtable.glyphs_kerning(left, right) {
+            return Some(value);
+        }
+    }
+    None
+}
+
 /// Simple left-to-right layout; collects glyph outlines into a path
 fn layout_text_to_path(
     face: &Face<'_>,
@@ -166,15 +188,18 @@ fn layout_text_to_path(
     scale: f32,
     baseline_y: f32,
     spacing: f32,
+    kerning: bool,
 ) -> Result<()> {
     let mut pen_x = 0.0;
     let mut pen_baseline = baseline_y;
     let line_advance = face.height() as f32 * scale;
+    let mut prev_gid = None;
 
     for ch in text.chars() {
         if ch == '\n' {
             pen_x = 0.0;
             pen_baseline -= line_advance;
+            prev_gid = None;
             continue;
         }
 
@@ -185,6 +210,15 @@ fn layout_text_to_path(
                 continue;
             }
         };
+
+        // Apply kerning relative to previous glyph when available
+        if kerning {
+            if let Some(prev) = prev_gid {
+                if let Some(kern) = kerning_value(face, prev, gid) {
+                    pen_x += kern as f32 * scale;
+                }
+            }
+        }
 
         // Add outline to path
         let mut adapter = LyonOutlineBuilder {
@@ -199,6 +233,7 @@ fn layout_text_to_path(
         // Advance: glyph advance + spacing
         let advance = face.glyph_hor_advance(gid).unwrap_or(0) as f32 * scale + spacing;
         pen_x += advance;
+        prev_gid = Some(gid);
     }
 
     Ok(())
