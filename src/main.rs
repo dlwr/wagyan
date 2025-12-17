@@ -15,6 +15,10 @@ use stl_io::Triangle;
 use ttf_parser::{Face, GlyphId, OutlineBuilder};
 
 const EMBEDDED_FONT: &[u8] = include_bytes!("../assets/fonts/NotoSansJP-Regular.otf");
+const DEFAULT_TOLERANCE: f32 = 0.01;
+const DEFAULT_TOLERANCE_SIZE: f32 = 72.0;
+const MIN_TOLERANCE: f32 = 0.0005;
+const MAX_TOLERANCE: f32 = 0.2;
 
 /// Simple CLI that extrudes text into an ASCII STL
 #[derive(Parser, Debug)]
@@ -31,6 +35,9 @@ struct Args {
     /// Font size (px-ish units)
     #[arg(long, default_value_t = 72.0)]
     size: f32,
+    /// Tessellation tolerance (smaller = finer). Default scales with --size.
+    #[arg(long)]
+    tolerance: Option<f32>,
     /// Extrusion depth (same units as layout)
     #[arg(long, default_value_t = 10.0)]
     depth: f32,
@@ -69,6 +76,12 @@ enum Orientation {
     Front,
 }
 
+fn resolve_tolerance(size: f32, cli_value: Option<f32>) -> f32 {
+    let scaled = DEFAULT_TOLERANCE * (size / DEFAULT_TOLERANCE_SIZE);
+    let value = cli_value.unwrap_or(scaled);
+    value.clamp(MIN_TOLERANCE, MAX_TOLERANCE)
+}
+
 fn main() -> Result<()> {
     let args = Args::parse();
     run(args).context("conversion failed")
@@ -103,6 +116,7 @@ fn run(args: Args) -> Result<()> {
     let units_per_em = face.units_per_em() as f32;
     let scale = args.size / units_per_em;
     let baseline_y = face.ascender() as f32 * scale;
+    let tolerance = resolve_tolerance(args.size, args.tolerance);
 
     // Convert literal "\\n" to newline unless disabled
     let text = if args.no_escape {
@@ -127,7 +141,7 @@ fn run(args: Args) -> Result<()> {
     let path = path_builder.build();
 
     // Tessellate and extrude
-    let mut mesh = tessellate_path(&path)?;
+    let mut mesh = tessellate_path(&path, tolerance)?;
     if !args.no_center {
         center_mesh_xy(&mut mesh);
     }
@@ -356,14 +370,14 @@ fn rectangle_mesh(min_x: f32, max_x: f32, min_y: f32, max_y: f32) -> Mesh2D {
     }
 }
 
-fn tessellate_path(path: &Path) -> Result<Mesh2D> {
+fn tessellate_path(path: &Path, tolerance: f32) -> Result<Mesh2D> {
     let mut buffers: VertexBuffers<Point, u16> = VertexBuffers::new();
     let mut tess = FillTessellator::new();
     tess.tessellate_path(
         path,
         &FillOptions::default()
             .with_fill_rule(FillRule::NonZero)
-            .with_tolerance(0.01),
+            .with_tolerance(tolerance),
         &mut BuffersBuilder::new(&mut buffers, |v: FillVertex| v.position()),
     )
     .context("failed to tessellate polygon")?;
@@ -507,4 +521,28 @@ fn write_stl_ascii_to_writer<W: Write>(mut writer: W, name: &str, tris: &[Triang
     writeln!(writer, "endsolid {}", name)?;
     writer.flush()?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn tolerance_scales_with_size() {
+        let base = resolve_tolerance(72.0, None);
+        let bigger = resolve_tolerance(144.0, None);
+        let smaller = resolve_tolerance(24.0, None);
+
+        assert!(bigger > base);
+        assert!(smaller < base);
+    }
+
+    #[test]
+    fn tolerance_is_clamped() {
+        let min = resolve_tolerance(1.0, Some(0.00001));
+        let max = resolve_tolerance(10_000.0, Some(10.0));
+
+        assert_eq!(min, MIN_TOLERANCE);
+        assert_eq!(max, MAX_TOLERANCE);
+    }
 }
