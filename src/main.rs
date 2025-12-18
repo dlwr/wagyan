@@ -528,6 +528,32 @@ mod tests {
     use super::*;
 
     #[test]
+    fn boundary_edges_filters_shared_edges() {
+        let indices = vec![0u16, 1, 2, 2, 1, 3];
+        let edges: std::collections::HashSet<(u16, u16)> =
+            boundary_edges(&indices).into_iter().collect();
+
+        let expected: std::collections::HashSet<(u16, u16)> =
+            [(0, 1), (2, 0), (3, 2), (1, 3)].into_iter().collect();
+
+        assert_eq!(edges, expected);
+    }
+
+    #[test]
+    fn calc_normal_returns_unit_z_for_xy_triangles() {
+        let n = calc_normal([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]);
+        assert!((n[0]).abs() < 1e-6);
+        assert!((n[1]).abs() < 1e-6);
+        assert!((n[2] - 1.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn calc_normal_handles_degenerate_triangles() {
+        let n = calc_normal([0.0, 0.0, 0.0], [1.0, 1.0, 1.0], [2.0, 2.0, 2.0]);
+        assert_eq!(n, [0.0, 0.0, 0.0]);
+    }
+
+    #[test]
     fn tolerance_scales_with_size() {
         let base = resolve_tolerance(72.0, None);
         let bigger = resolve_tolerance(144.0, None);

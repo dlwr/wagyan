@@ -11,3 +11,6 @@ lyon_path = "1.0"
 lyon_tessellation = "1.0"
 stl_io = "0.4"
 ttf-parser = "0.21"
+
+[dev-dependencies]
+assert_cmd = "2.0"
