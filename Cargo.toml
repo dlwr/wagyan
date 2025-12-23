@@ -3,6 +3,11 @@ name = "wagyan"
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
+description = "CLI tool to convert text into extruded ASCII STL meshes (TTF/OTF supported)"
+repository = "https://github.com/dlwr/wagyan"
+readme = "README.md"
+keywords = ["stl", "3d", "mesh", "font", "cli"]
+include = ["src/**", "assets/**", "Cargo.toml", "Cargo.lock", "README.md", "LICENSE"]
 
 [dependencies]
 anyhow = "1.0"
