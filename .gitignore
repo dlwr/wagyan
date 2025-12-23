@@ -2,3 +2,4 @@
 dist/
 *.tar.gz
 *.stl
+.DS_Store
