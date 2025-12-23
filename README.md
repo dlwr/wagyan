@@ -1,5 +1,19 @@
 # Wagyan: Text → ASCII STL CLI
 
+## Installation
+
+### Homebrew
+
+```bash
+brew install dlwr/wagyan/wagyan
+```
+
+### Cargo
+
+```bash
+cargo install wagyan
+```
+
 ## Usage
 
 ```bash
