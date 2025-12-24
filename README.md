@@ -34,7 +34,7 @@ Options:
 - `--depth <value>`: Extrusion depth (centered ±depth/2). Default `10`.
 - `--spacing <value>`: Extra spacing between glyphs.
 - `--kerning` / `--no-kerning`: Toggle kerning (default on when font provides pairs).
-- `--plate <value>`: Back plate thickness (0 disables). Default `2`.
+- `--plate <value>`: Back plate thickness (0 disables). Default `0`.
 - `--plate-margin <value>`: Margin to expand the plate. Default `2`.
 - `--orient <flat|front>`: Text plane (front faces the viewer on XZ; flat is XY).
 - `--no-escape`: Keep literal `\\n` (no newline conversion). Default converts `\\n` to newline.

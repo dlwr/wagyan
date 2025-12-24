@@ -51,7 +51,7 @@ struct Args {
     #[arg(long = "no-kerning", action = clap::ArgAction::SetTrue, conflicts_with = "kerning")]
     no_kerning: bool,
     /// Back plate thickness (0 disables)
-    #[arg(long, default_value_t = 2.0)]
+    #[arg(long, default_value_t = 0.0)]
     plate: f32,
     /// Margin to expand the plate
     #[arg(long, default_value_t = 2.0)]
