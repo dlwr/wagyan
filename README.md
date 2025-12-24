@@ -20,10 +20,10 @@ cargo install wagyan
 
 ```bash
 # Default embedded font (Noto Sans JP Regular), write to stdout
-cargo run -- --size 72 --depth 10 "HELLO" | pbcopy
+wagyan --size 72 --depth 10 "HELLO" | pbcopy
 
 # Japanese + newline with external font
-cargo run -- --font "/System/Library/Fonts/ヒラギノ角ゴシック W4.ttc" --size 72 --depth 5 "こんにちは\n世界"
+wagyan --font "/System/Library/Fonts/ヒラギノ角ゴシック W4.ttc" --size 72 --depth 5 "こんにちは\n世界"
 ```
 
 Options:
