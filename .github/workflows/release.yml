@@ -61,6 +61,11 @@ jobs:
         with:
           repository: dlwr/homebrew-wagyan
           token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          persist-credentials: false
+
+      - name: Configure tap repo auth
+        run: |
+          git remote set-url origin https://x-access-token:${{ secrets.HOMEBREW_TAP_TOKEN }}@github.com/dlwr/homebrew-wagyan.git
 
       - name: Update formula with new URL and SHA
         run: |
@@ -76,4 +81,4 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add Formula/wagyan.rb
           git commit -m "Update wagyan formula for ${GITHUB_REF_NAME}"
-          git push
+          git push origin HEAD:main
