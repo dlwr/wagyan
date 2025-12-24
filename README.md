@@ -1,5 +1,7 @@
 # Wagyan: Text → ASCII STL CLI
 
+Pronunciation: ワギャン (IPA:[waɡʲaɴ])
+
 ## Installation
 
 ### Homebrew
